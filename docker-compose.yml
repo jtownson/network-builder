@@ -41,9 +41,12 @@ services:
       NATS_URL: nats://nats:4222
       JETSTREAM_STREAM: ingress_messages
       EMBEDDER_DURABLE: embedder_v1
+      EMBED_PROVIDER: tei
       EMBEDDED_SUBJECT_PREFIX: embeddings
-      EMBED_MODEL_VERSION: stub-768-v1
+      EMBED_MODEL_VERSION: BAAI/bge-base-en-v1.5@tei
       EMBED_DIM: "768"
+      TEI_URL: http://tei:80
+      EMBED_FALLBACK_TO_STUB: "true"
 
       DB_HOST: postgres
       DB_PORT: "5432"
@@ -55,8 +58,23 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      tei:
+        condition: service_healthy
       js_init:
         condition: service_completed_successfully
+
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:89-1.8
+    command: ["--model-id", "BAAI/bge-base-en-v1.5"]
+    gpus: all
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:80/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 200s
 
   clusterer:
     build:

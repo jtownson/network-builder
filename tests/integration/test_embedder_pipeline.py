@@ -29,7 +29,7 @@ async def test_embedder_publishes_embedded_event(api_url, nats):
             r = await client.post(f"{api_url}/v1/orgs/{org_id}/messages", json=payload)
             assert r.status_code == 202, r.text
 
-            msg = await sub.next_msg(timeout=10.0)
+            msg = await sub.next_msg(timeout=60.0)
             evt = MessageEmbeddedEvent.model_validate_json(msg.data)
 
             assert evt.event_type == "message.embedded"
