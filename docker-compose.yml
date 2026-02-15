@@ -1,0 +1,132 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: network_builder_client
+      POSTGRES_PASSWORD: network_builder_secret
+      POSTGRES_DB: network_builder_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U network_builder_client -d network_builder_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"   # client connections
+      - "8222:8222"   # monitoring
+    volumes:
+      - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - natsdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+
+  embedder:
+    build:
+      context: .
+      dockerfile: dockerfile.embedder
+    environment:
+      PYTHONUNBUFFERED: "1"
+      NATS_URL: nats://nats:4222
+      JETSTREAM_STREAM: ingress_messages
+      EMBEDDER_DURABLE: embedder_v1
+      EMBEDDED_SUBJECT_PREFIX: embeddings
+      EMBED_MODEL_VERSION: stub-768-v1
+      EMBED_DIM: "768"
+
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: network_builder_db
+      DB_USER: network_builder_client
+      DB_PASSWORD: network_builder_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      js_init:
+        condition: service_completed_successfully
+
+  clusterer:
+    build:
+      context: .
+      dockerfile: dockerfile.embedder
+    command: ["python", "-m", "app.cluster.clusterer_consumer"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      NATS_URL: nats://nats:4222
+      JETSTREAM_STREAM: ingress_messages
+      CLUSTERER_DURABLE: clusterer_v1
+      CLUSTERER_CONSUME_SUBJECT: embeddings.>
+      CLUSTERED_SUBJECT_PREFIX: clusters
+      CLUSTER_ASSIGN_SIM_THRESHOLD: "0.78"
+      CLUSTER_COUNT_CAP: "1000"
+
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: network_builder_db
+      DB_USER: network_builder_client
+      DB_PASSWORD: network_builder_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      js_init:
+        condition: service_completed_successfully
+
+
+  api:
+    build:
+      context: .
+      dockerfile: dockerfile.api
+    environment:
+      # Inside compose network, use service names
+      NATS_URL: nats://nats:4222
+      JETSTREAM_STREAM: ingress_messages
+      JETSTREAM_SUBJECTS: messages.>
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: network_builder_db
+      DB_USER: network_builder_client
+      DB_PASSWORD: network_builder_secret
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      js_init:
+        condition: service_completed_successfully
+
+
+  js_init:
+    build:
+      context: .
+      dockerfile: dockerfile.embedder
+    environment:
+      NATS_URL: nats://nats:4222
+      JETSTREAM_STREAM: ingress_messages
+      JETSTREAM_SUBJECTS: messages.>,embeddings.>,clusters.>
+    command: ["python", "-m", "app.ops.js_init"]
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: "no"
+
+  
+volumes:
+  pgdata:
+  natsdata:

@@ -1,0 +1,160 @@
+openapi: 3.0.3
+info:
+  title: Crosstalk Network Builder API
+  version: 0.1.0
+  description: |
+    Ingests org-scoped messages, performs semantic clustering and allows 
+    queries of users with a close semantic connection to some target user.
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /v1/orgs/{org_id}/messages:
+    post:
+      summary: 
+        Ingest a message. For the sake of timeliness, 
+        the API call returns once messages are published to an internal message topic
+        and without any further processing.
+      operationId: ingestMessage
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestMessageRequest"
+      responses:
+        "202":
+          description: Accepted for processing (published)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestMessageResponse"
+        "400":
+          description: Bad request
+        "503":
+          description: Messaging backend unavailable
+
+  /v1/orgs/{org_id}/users/{user_id}/connections:
+    get:
+      summary: List other users in order of semantic connection to the target user.
+      operationId: getUserConnections
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Centroids containing the user, with users ranked by distance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCentroidsResponse"
+
+components:
+  schemas:
+    IngestMessageRequest:
+      type: object
+      required: [user_id, ts, text, source_type]
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          description: Optional client-supplied id for idempotency.
+        user_id:
+          type: string
+        ts:
+          type: string
+          format: date-time
+        text:
+          type: string
+        source_type:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    IngestMessageResponse:
+      type: object
+      required: [status, event_id, org_id, message_id, subject, stream, seq]
+      properties:
+        status:
+          type: string
+          example: accepted
+        event_id:
+          type: string
+          format: uuid
+        org_id:
+          type: string
+        message_id:
+          type: string
+          format: uuid
+        subject:
+          type: string
+          example: messages.org-1
+        stream:
+          type: string
+          example: ingress_messages
+        seq:
+          type: integer
+          example: 42
+
+    RankedUser:
+      type: object
+      required: [user_id, distance, message_count]
+      properties:
+        user_id:
+          type: string
+        distance:
+          type: number
+          format: float
+        message_count:
+          type: integer
+
+    UserCentroidResult:
+      type: object
+      required: [cluster_id, users]
+      properties:
+        cluster_id:
+          type: string
+          format: uuid
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankedUser"
+
+    UserCentroidsResponse:
+      type: object
+      required: [org_id, user_id, centroids]
+      properties:
+        org_id:
+          type: string
+        user_id:
+          type: string
+        centroids:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserCentroidResult"
