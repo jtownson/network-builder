@@ -63,8 +63,8 @@ flowchart LR
     EMBEDDER --> TEI
     EMBEDDER --> EMB
     EMB --> CLUSTERER
-    API --> T1
     API --> T5
+    CLUSTERER --> T1
     CLUSTERER --> T2
     CLUSTERER --> T3
     CLUSTERER --> T4

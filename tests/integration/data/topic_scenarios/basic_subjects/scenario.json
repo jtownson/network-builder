@@ -1,0 +1,41 @@
+{
+  "name": "basic_subjects_v1",
+  "subjects": [
+    {
+      "label": "cars",
+      "users": ["cars_alex", "cars_blair", "cars_casey"],
+      "texts": [
+        "I spent the weekend comparing electric sedans by battery range and charging speed.",
+        "Brake pads, tire pressure, and wheel alignment changed how my car handles at highway speed.",
+        "I prefer manual transmission sports cars because engine response and cornering feel are better."
+      ]
+    },
+    {
+      "label": "java_programming",
+      "users": ["java_amy", "java_ben", "java_chris"],
+      "texts": [
+        "In Java 21 I used records and pattern matching to simplify domain model code.",
+        "Our Spring Boot service failed a JUnit test because dependency injection was misconfigured.",
+        "Gradle build caching improved compile times for our JVM microservices project."
+      ]
+    },
+    {
+      "label": "going_out",
+      "users": ["night_ava", "night_brian", "night_cleo"],
+      "texts": [
+        "We booked a rooftop bar downtown with live DJ sets and craft cocktails.",
+        "The club line was long, but the dance floor and late night music were worth it.",
+        "I like planning weekend nightlife with restaurant reservations before going out with friends."
+      ]
+    },
+    {
+      "label": "classical_music",
+      "users": ["classic_alma", "classic_boris", "classic_clara"],
+      "texts": [
+        "The orchestra performed Beethoven symphonies with a strong string section and precise tempo.",
+        "I enjoyed the piano concerto because the conductor balanced dynamics across the ensemble.",
+        "Chamber music for violin and cello sounded intimate compared with full symphony works."
+      ]
+    }
+  ]
+}

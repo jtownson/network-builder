@@ -192,6 +192,44 @@ def upsert_message_cluster(
     )
 
 
+def upsert_message(
+    cur: psycopg.Cursor,
+    org_id: str,
+    message_id: UUID,
+    user_id: str,
+    ts: datetime,
+    source_type: str,
+    text: str,
+    metadata: dict,
+) -> None:
+    cur.execute(
+        """
+        INSERT INTO messages (org_id, message_id, user_id, ts, source_type, text, metadata)
+        VALUES (%s, %s::uuid, %s, %s, %s, %s, %s::jsonb)
+        ON CONFLICT (org_id, message_id) DO NOTHING
+        """,
+        (org_id, str(message_id), user_id, ts, source_type, text, psycopg.types.json.Jsonb(metadata)),
+    )
+
+
+def upsert_message_embedding(
+    cur: psycopg.Cursor,
+    org_id: str,
+    message_id: UUID,
+    model_version: str,
+    embedding: List[float],
+) -> None:
+    vec_lit = to_pgvector_literal(embedding)
+    cur.execute(
+        """
+        INSERT INTO message_embeddings (org_id, message_id, model_version, embedding)
+        VALUES (%s, %s::uuid, %s, %s::vector)
+        ON CONFLICT (org_id, message_id, model_version) DO NOTHING
+        """,
+        (org_id, str(message_id), model_version, vec_lit),
+    )
+
+
 def upsert_user_cluster(
     cur: psycopg.Cursor,
     org_id: str,
@@ -279,6 +317,25 @@ async def main() -> None:
                     embedding = l2_normalize(list(embedded.embedding))
 
                     with conn.cursor() as cur:
+                        upsert_message(
+                            cur=cur,
+                            org_id=org_id,
+                            message_id=message_id,
+                            user_id=user_id,
+                            ts=ts,
+                            source_type=msg_payload.source_type,
+                            text=msg_payload.text,
+                            metadata=msg_payload.metadata,
+                        )
+
+                        upsert_message_embedding(
+                            cur=cur,
+                            org_id=org_id,
+                            message_id=message_id,
+                            model_version=model_version,
+                            embedding=embedding,
+                        )
+
                         existing = get_existing_message_assignment(cur, org_id, message_id)
                         if existing is not None:
                             cluster_id, confidence = existing
